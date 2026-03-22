@@ -1,0 +1,7 @@
+numpy
+scipy
+sympy
+pyvista
+plotly
+matplotlib
+pytest
