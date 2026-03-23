@@ -635,13 +635,9 @@ class InfiniteAxesRenderer:
     #         line_width=2,
     #     )
     #
-    #     pl.add_text(
-    #         "Left drag: pan    Shift + left: rotate    Right drag: zoom    K: expand    J: shrink    V: reset",
-    #         position="upper_left",
-    #         font_size=10,
-    #         color="black",
-    #         name="helpText",
-    #     )
+    # pl.add_text( "Left drag: pan    Shift + left: rotate    Right drag:
+    # zoom    K: expand    J: shrink    V: reset", position="upper_left",
+    # font_size=10, color="black", name="helpText", )
     #
     #     pl.add_text(
     #         "",
@@ -660,11 +656,10 @@ class InfiniteAxesRenderer:
     #
     #     self._updateAxesIfNeeded(force=True)
     #
-    #     if not self._wheelObserversAdded:
-    #         pl.iren.add_observer("MouseWheelBackwardEvent",
-    #                              self._onWheelZoomOut)
-    #         pl.iren.add_observer("MouseWheelForwardEvent", self._onWheelZoomIn)
-    #         self._wheelObserversAdded = True
+    # if not self._wheelObserversAdded: pl.iren.add_observer(
+    # "MouseWheelBackwardEvent", self._onWheelZoomOut) pl.iren.add_observer(
+    # "MouseWheelForwardEvent", self._onWheelZoomIn)
+    # self._wheelObserversAdded = True
     #
     #     def onRender(_plotter) -> None:
     #         self._updateAxesIfNeeded(force=False)

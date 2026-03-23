@@ -5,18 +5,24 @@ from ode_pde_visualizer.core.graph_settings import InfiniteAxesSettings
 from ode_pde_visualizer.core.projection import ProjectionResult
 from ode_pde_visualizer.rendering.color_policy import ScalarColorPolicy
 from ode_pde_visualizer.rendering.infinite_axes_renderer import InfiniteAxesRenderer
+
+
 class PyVistaVolumeRenderer:
     def __init__(
             self,
+            plotter=None,
             axisSettings: InfiniteAxesSettings | None = None,
     ) -> None:
-        self.plotter = pv.Plotter()
+        # If a Qt plotter widget is passed in, reuse it.
+        # Otherwise create a normal standalone PyVista plotter.
+        self._ownsPlotter = plotter is None
+        self.plotter = plotter if plotter is not None else pv.Plotter()
+
         self._initialized = False
         self._volumeActor = None
         self._infoActor = None
 
-        # Integration point: reuse the same plotter that renders the PDE/ODE
-        # volume so the custom infinite axes follow the same camera.
+        # Shared infinite axis overlay
         self.axisSettings = axisSettings or InfiniteAxesSettings()
         self.axisOverlay = InfiniteAxesRenderer(
             settings=self.axisSettings,
@@ -45,13 +51,15 @@ class PyVistaVolumeRenderer:
         image.point_data["u"] = volume.flatten(order="F")
         return image
 
-    def render(self, projection: ProjectionResult,
-               colorPolicy: ScalarColorPolicy) -> None:
+    def render(
+            self,
+            projection: ProjectionResult,
+            colorPolicy: ScalarColorPolicy,
+    ) -> None:
         image = self._buildImageData(projection)
 
         if not self._initialized:
-            # Install the axis overlay once. In integrated mode we do not let it
-            # override the app's existing input bindings.
+            # In the integrated desktop app, keep the app's own controls.
             self.axisOverlay.install(
                 enableStandaloneBindings=False,
                 addHelpText=False,
@@ -88,9 +96,12 @@ class PyVistaVolumeRenderer:
             shade=True,
         )
 
+        shownAxisNames = tuple(
+            name for name in projection.visibleAxisNames if name)
+
         self._infoActor = self.plotter.add_text(
             "\n".join([
-                f"Visible axes: {projection.visibleAxisNames}",
+                f"Visible axes: {shownAxisNames if shownAxisNames else ('none',)}",
                 f"Hidden axes: {projection.hiddenAxisSummary}",
             ]),
             position="upper_left",
@@ -98,10 +109,9 @@ class PyVistaVolumeRenderer:
             name="projectionInfo",
         )
 
-        # Rebuild the custom axis last so it stays visible after the volume is
-        # updated and follows the current shared camera.
         self.axisOverlay.refresh(force=True)
         self.plotter.render()
 
     def show(self) -> None:
-        self.plotter.show(auto_close=False)
+        if self._ownsPlotter:
+            self.plotter.show(auto_close=False)

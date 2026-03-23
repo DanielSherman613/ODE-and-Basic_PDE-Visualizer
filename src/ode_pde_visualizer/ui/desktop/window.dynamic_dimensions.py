@@ -1,9 +1,14 @@
-from PyQt6.QtWidgets import QMainWindow, QSplitter, QWidget, QHBoxLayout
+from __future__ import annotations
+
+from PyQt6.QtWidgets import QHBoxLayout, QMainWindow, QSplitter, QWidget
 from pyvistaqt import QtInteractor
 
 from ode_pde_visualizer.app.controller import HyperPDEController, ViewerModel
 from ode_pde_visualizer.interaction.wheel_binding import PyVistaInteractionBinder
-from ode_pde_visualizer.math_tools.expression_parser import ParsedMathExpression
+from ode_pde_visualizer.math_tools.expression_parser import (
+    ParsedMathExpression,
+    formatExpressionSignature,
+)
 from ode_pde_visualizer.rendering.pyvista_renderer import PyVistaVolumeRenderer
 from ode_pde_visualizer.ui.desktop.equation_panel import EquationPanel
 
@@ -28,7 +33,7 @@ class DesktopMainWindow(QMainWindow):
         splitter.addWidget(self.plotterWidget)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([360, 1140])
+        splitter.setSizes([380, 1120])
 
         self.renderer = PyVistaVolumeRenderer(plotter=self.plotterWidget)
         self.controller = HyperPDEController(model, self.renderer)
@@ -38,14 +43,27 @@ class DesktopMainWindow(QMainWindow):
 
         self.equationPanel.expressionApplied.connect(self._onExpressionApplied)
         self._currentExpression: ParsedMathExpression | None = None
+        self._updateStatusBar()
 
     def _onExpressionApplied(self, parsed: ParsedMathExpression) -> None:
         self._currentExpression = parsed
-        self.statusBar().showMessage(f"Current expression: {parsed.rawText}")
+        self.controller.setExpression(parsed)
+
+        signature = self.controller.currentExpressionSignature()
+        summaryText = formatExpressionSignature(signature) if signature is not None else ""
         self.plotterWidget.add_text(
-            f"Equation: {parsed.rawText}",
+            f"Equation: {parsed.rawText}\n{summaryText}",
             position="lower_left",
             font_size=10,
             name="equationTextOverlay",
         )
+        self._updateStatusBar()
         self.plotterWidget.render()
+
+    def _updateStatusBar(self) -> None:
+        signature = self.controller.currentExpressionSignature()
+        if signature is None:
+            self.statusBar().showMessage("Base demo model loaded.")
+            return
+
+        self.statusBar().showMessage(formatExpressionSignature(signature))
