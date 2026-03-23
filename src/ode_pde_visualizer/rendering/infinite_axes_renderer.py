@@ -9,15 +9,30 @@ from ode_pde_visualizer.core.graph_settings import InfiniteAxesSettings
 
 
 class InfiniteAxesRenderer:
-    def __init__(self, settings: InfiniteAxesSettings) -> None:
+    def __init__(
+            self,
+            settings: InfiniteAxesSettings,
+            plotter: pv.Plotter | None = None,
+    ) -> None:
         pv.OFF_SCREEN = False
         self.settings = settings
-        self.plotter = pv.Plotter(off_screen=False, window_size=[1200, 800])
+
+        # If a plotter is supplied, this renderer behaves like an overlay that
+        # attaches infinite axes onto an existing PyVista scene. Otherwise it
+        # creates and owns its own standalone plotter window.
+        self._ownsPlotter = plotter is None
+        self.plotter = plotter or pv.Plotter(
+            off_screen=False,
+            window_size=[1200, 800],
+        )
 
         self._axisActors: list[object] = []
         self._lastSignature: tuple[int, int, int, int] | None = None
         self._busy = False
         self._wheelObserversAdded = False
+        self._renderCallbackAdded = False
+        self._standaloneBindingsAdded = False
+        self._overlayInitialized = False
 
         # ===== Tick / label tuning ===== These are the main visual
         # parameters to tweak when spacing looks wrong. They are defined in
@@ -521,34 +536,29 @@ class InfiniteAxesRenderer:
         if self._wheelForwardCount >= self._wheelStepsPerScaleChange:
             self._wheelForwardCount = 0
             self._shrinkAxes()
+    def install(
+            self,
+            enableStandaloneBindings: bool = True,
+            addHelpText: bool = True,
+    ) -> None:
+        """Attach the infinite axis overlay to the current plotter.
 
-    def render(self) -> None:
+        In standalone mode this also installs the custom camera bindings and
+        axis scaling hotkeys. In integrated mode, pass
+        enableStandaloneBindings=False so the main app keeps control of input.
+        """
         pl = self.plotter
         pl.set_background(self.settings.backgroundColor)
-
         pl.disable_parallel_projection()
 
-        pl.enable_custom_trackball_style(
-            left="pan",
-            shift_left="rotate",
-            middle="pan",
-            right="dolly",
-        )
-
-        pl.add_axes(
-            xlabel=self.settings.xlabel,
-            ylabel=self.settings.ylabel,
-            zlabel=self.settings.zlabel,
-            line_width=2,
-        )
-
-        pl.add_text(
-            "Left drag: pan    Shift + left: rotate    Right drag: zoom    K: expand    J: shrink    V: reset",
-            position="upper_left",
-            font_size=10,
-            color="black",
-            name="helpText",
-        )
+        if not self._overlayInitialized:
+            pl.add_axes(
+                xlabel=self.settings.xlabel,
+                ylabel=self.settings.ylabel,
+                zlabel=self.settings.zlabel,
+                line_width=2,
+            )
+            self._overlayInitialized = True
 
         pl.add_text(
             "",
@@ -557,26 +567,109 @@ class InfiniteAxesRenderer:
             color="crimson",
             name="edgeWarning",
             shadow=True,
+            render=False,
         )
 
-        pl.camera_position = self._initialCameraPosition
+        if enableStandaloneBindings and not self._standaloneBindingsAdded:
+            pl.enable_custom_trackball_style(
+                left="pan",
+                shift_left="rotate",
+                middle="pan",
+                right="dolly",
+            )
 
-        pl.add_key_event("k", self._expandAxes)
-        pl.add_key_event("j", self._shrinkAxes)
-        pl.add_key_event("v", self._resetAxesState)
+            if addHelpText:
+                pl.add_text(
+                    "Left drag: pan    Shift + left: rotate    Right drag: zoom    K: expand    J: shrink    V: reset",
+                    position="upper_left",
+                    font_size=10,
+                    color="black",
+                    name="helpText",
+                )
+
+            pl.camera_position = self._initialCameraPosition
+            pl.add_key_event("k", self._expandAxes)
+            pl.add_key_event("j", self._shrinkAxes)
+            pl.add_key_event("v", self._resetAxesState)
+
+            if not self._wheelObserversAdded:
+                pl.iren.add_observer("MouseWheelBackwardEvent",
+                                     self._onWheelZoomOut)
+                pl.iren.add_observer("MouseWheelForwardEvent", self._onWheelZoomIn)
+                self._wheelObserversAdded = True
+
+            self._standaloneBindingsAdded = True
+
+        if not self._renderCallbackAdded:
+            def onRender(_plotter) -> None:
+                self._updateAxesIfNeeded(force=False)
+
+            pl.add_on_render_callback(onRender, render_event=True)
+            self._renderCallbackAdded = True
 
         self._updateAxesIfNeeded(force=True)
 
-        if not self._wheelObserversAdded:
-            pl.iren.add_observer("MouseWheelBackwardEvent",
-                                 self._onWheelZoomOut)
-            pl.iren.add_observer("MouseWheelForwardEvent", self._onWheelZoomIn)
-            self._wheelObserversAdded = True
+    def refresh(self, force: bool = False) -> None:
+        self._updateAxesIfNeeded(force=force)
 
-        def onRender(_plotter) -> None:
-            self._updateAxesIfNeeded(force=False)
+    def render(self) -> None:
+        self.install(enableStandaloneBindings=True, addHelpText=True)
 
-        pl.add_on_render_callback(onRender, render_event=True)
+    # def render(self) -> None:
+    #     pl = self.plotter
+    #     pl.set_background(self.settings.backgroundColor)
+    #
+    #     pl.disable_parallel_projection()
+    #
+    #     pl.enable_custom_trackball_style(
+    #         left="pan",
+    #         shift_left="rotate",
+    #         middle="pan",
+    #         right="dolly",
+    #     )
+    #
+    #     pl.add_axes(
+    #         xlabel=self.settings.xlabel,
+    #         ylabel=self.settings.ylabel,
+    #         zlabel=self.settings.zlabel,
+    #         line_width=2,
+    #     )
+    #
+    #     pl.add_text(
+    #         "Left drag: pan    Shift + left: rotate    Right drag: zoom    K: expand    J: shrink    V: reset",
+    #         position="upper_left",
+    #         font_size=10,
+    #         color="black",
+    #         name="helpText",
+    #     )
+    #
+    #     pl.add_text(
+    #         "",
+    #         position="upper_right",
+    #         font_size=12,
+    #         color="crimson",
+    #         name="edgeWarning",
+    #         shadow=True,
+    #     )
+    #
+    #     pl.camera_position = self._initialCameraPosition
+    #
+    #     pl.add_key_event("k", self._expandAxes)
+    #     pl.add_key_event("j", self._shrinkAxes)
+    #     pl.add_key_event("v", self._resetAxesState)
+    #
+    #     self._updateAxesIfNeeded(force=True)
+    #
+    #     if not self._wheelObserversAdded:
+    #         pl.iren.add_observer("MouseWheelBackwardEvent",
+    #                              self._onWheelZoomOut)
+    #         pl.iren.add_observer("MouseWheelForwardEvent", self._onWheelZoomIn)
+    #         self._wheelObserversAdded = True
+    #
+    #     def onRender(_plotter) -> None:
+    #         self._updateAxesIfNeeded(force=False)
+    #
+    #     pl.add_on_render_callback(onRender, render_event=True)
 
     def show(self) -> None:
         self.plotter.show(auto_close=False, interactive=True)

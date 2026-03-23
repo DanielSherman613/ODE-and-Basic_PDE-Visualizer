@@ -8,8 +8,9 @@ from ode_pde_visualizer.core.view_state import DimensionWindow, HiddenAxisPolicy
 from ode_pde_visualizer.core.projection import ReductionMode, RenderMode
 from ode_pde_visualizer.interaction.wheel_binding import PyVistaInteractionBinder
 from ode_pde_visualizer.rendering.color_policy import ScalarColorPolicy
-from ode_pde_visualizer.rendering.pyvista_renderer import PyVistaVolumeRenderer
 from ode_pde_visualizer.systems.pde.heat_nd import NDimHeatEquation
+from ode_pde_visualizer.core.graph_settings import InfiniteAxesSettings
+from ode_pde_visualizer.rendering.pyvista_renderer import PyVistaVolumeRenderer
 
 def buildExampleModel() -> ViewerModel:
     axes = [
@@ -60,7 +61,18 @@ def buildExampleModel() -> ViewerModel:
 
 def main() -> None:
     model = buildExampleModel()
-    renderer = PyVistaVolumeRenderer()
+
+    axisSettings = InfiniteAxesSettings(
+        tickTargetCount=24,
+        tickLengthFraction=0.12,
+        labelOffsetFraction=0.18,
+        minAxisHalfSpan=8.0,
+        axisScaleWithDistance=1.0,
+        updatePositionTolerance=0.5,
+        updateDistanceTolerance=0.5,
+    )
+
+    renderer = PyVistaVolumeRenderer(axisSettings=axisSettings)
     controller = HyperPDEController(model, renderer)
 
     binder = PyVistaInteractionBinder(renderer, controller)
