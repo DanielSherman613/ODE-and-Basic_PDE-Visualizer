@@ -1,3 +1,4 @@
 py -m venv .venv
 .venv\Scripts\activate
-python scripts/run_desktop.py
+pip install -e .
+python scripts/run_desktop_qt.py
