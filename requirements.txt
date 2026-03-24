@@ -1,9 +1,0 @@
-numpy
-scipy
-sympy
-pyvista
-plotly
-matplotlib
-pytest
-PyQt6
-pyvistaqt
