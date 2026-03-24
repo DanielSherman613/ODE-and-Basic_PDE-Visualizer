@@ -1,0 +1,114 @@
+ode_pde_visualizer
+├── assets
+│   ├── sample_outputs
+│   │   └── .gitkeep
+│   └── screenshots
+│       └── .gitkeep
+├── configs
+│   ├── color_maps.toml
+│   └── default.toml
+├── docs
+│   ├── adding_new_systems.md
+│   ├── architecture.md
+│   ├── color_guidelines.md
+│   └── projection_rules.md
+├── notebooks
+│   ├── ode_experiments.ipynb
+│   └── pde_experiments.ipynb
+├── scripts
+│   ├── generate_demo_data.py
+│   ├── run_desktop.py
+│   └── run_web.py
+├── src
+│   └── ode_pde_visualizer
+│       ├── app
+│       │   ├── __init__.py
+│       │   ├── app_state.py
+│       │   ├── controller.py
+│       │   ├── desktop_main.py
+│       │   └── web_main.py
+│       ├── core
+│       │   ├── __init__.py
+│       │   ├── fields.py
+│       │   ├── grids.py
+│       │   ├── parameters.py
+│       │   ├── projection.py
+│       │   ├── time_series.py
+│       │   └── view_state.py
+│       ├── interaction
+│       │   ├── __init__.py
+│       │   ├── camera_controls.py
+│       │   ├── keyboard_binding.py
+│       │   └── wheel_binding.py
+│       ├── math_tools
+│       │   ├── __init__.py
+│       │   ├── equilibria.py
+│       │   ├── finite_differences.py
+│       │   ├── jacobians.py
+│       │   ├── sparse_operators.py
+│       │   ├── stability.py
+│       │   └── symbolic.py
+│       ├── presets
+│       │   ├── __init__.py
+│       │   ├── ode_presets.py
+│       │   └── pde_presets.py
+│       ├── rendering
+│       │   ├── __init__.py
+│       │   ├── color_policy.py
+│       │   ├── labels.py
+│       │   ├── matplotlib_renderer.py
+│       │   ├── plotly_renderer.py
+│       │   ├── pyvista_renderer.py
+│       │   └── scalar_normalization.py
+│       ├── solvers
+│       │   ├── __init__.py
+│       │   ├── explicit_time_stepper.py
+│       │   ├── implicit_time_stepper.py
+│       │   ├── ode_solver.py
+│       │   └── pde_runner.py
+│       ├── systems
+│       │   ├── ode
+│       │   │   ├── __init__.py
+│       │   │   ├── base.py
+│       │   │   ├── logistic.py
+│       │   │   ├── lorenz.py
+│       │   │   ├── lotka_volterra.py
+│       │   │   └── van_der_pol.py
+│       │   ├── pde
+│       │   │   ├── __init__.py
+│       │   │   ├── base.py
+│       │   │   ├── heat_1d.py
+│       │   │   ├── heat_nd.py
+│       │   │   ├── reaction_diffusion.py
+│       │   │   ├── wave_1d.py
+│       │   │   └── wave_nd.py
+│       │   └── __init__.py
+│       ├── ui
+│       │   ├── desktop
+│       │   │   ├── __init__.py
+│       │   │   ├── sidebar.py
+│       │   │   ├── status_bar.py
+│       │   │   └── window.py
+│       │   ├── web
+│       │   │   ├── __init__.py
+│       │   │   ├── callbacks.py
+│       │   │   ├── components.py
+│       │   │   └── layout.py
+│       │   └── __init__.py
+│       ├── utils
+│       │   ├── __init__.py
+│       │   ├── io.py
+│       │   ├── profiling.py
+│       │   └── validation.py
+│       └── __init__.py
+├── tests
+│   ├── test_color_policy.py
+│   ├── test_grids.py
+│   ├── test_ode_solvers.py
+│   ├── test_pde_operators.py
+│   ├── test_projection_engine.py
+│   └── test_view_state.py
+├── .gitignore
+├── pyproject.toml
+├── README.md
+└── requirements.txt
