@@ -190,6 +190,52 @@ class PyVistaVolumeRenderer:
             return "surface"
         return "volume"
 
+    @staticmethod
+    def _hasRenderableGeometry(mesh) -> bool:
+        return (
+                mesh is not None
+                and int(getattr(mesh, "n_points", 0)) > 0
+                and int(getattr(mesh, "n_cells", 0)) > 0
+        )
+
+    @staticmethod
+    def _activeAxisIndices(
+        visibleCoords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    ) -> list[int]:
+        return [index for index, coords in enumerate(visibleCoords) if len(coords) > 1]
+
+    @staticmethod
+    def _extract2DValues(volume: np.ndarray) -> np.ndarray:
+        values = np.squeeze(np.asarray(volume, dtype=float))
+        if values.ndim != 2:
+            raise ValueError(f"Expected a 2D slice, got shape {values.shape}")
+        return values
+
+    @staticmethod
+    def _buildPlaneCoordinates(
+        visibleCoords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        coordList = [np.asarray(coords, dtype=float) for coords in visibleCoords]
+        activeAxes = [index for index, coords in enumerate(coordList) if len(coords) > 1]
+
+        if len(activeAxes) != 2:
+            raise ValueError(f"Expected exactly 2 active axes, got {activeAxes}")
+
+        a0, a1 = activeAxes
+        grid0, grid1 = np.meshgrid(coordList[a0], coordList[a1], indexing="ij")
+
+        xyz: list[np.ndarray] = []
+        for axisIndex in range(3):
+            if axisIndex == a0:
+                xyz.append(grid0)
+            elif axisIndex == a1:
+                xyz.append(grid1)
+            else:
+                constantValue = float(coordList[axisIndex][0]) if len(coordList[axisIndex]) > 0 else 0.0
+                xyz.append(np.full_like(grid0, constantValue))
+
+        return xyz[0], xyz[1], xyz[2]
+
     def _renderCurve(
         self,
         projection: ProjectionResult,
@@ -215,15 +261,25 @@ class PyVistaVolumeRenderer:
         return actor
 
     def _renderSurface(
-        self,
-        projection: ProjectionResult,
-        colorPolicy: ScalarColorPolicy,
-        clim: tuple[float, float] | None,
+            self,
+            projection: ProjectionResult,
+            colorPolicy: ScalarColorPolicy,
+            clim: tuple[float, float] | None,
     ):
-        xCoords, yCoords, _ = projection.visibleCoords
-        values = np.asarray(projection.volume[:, :, 0], dtype=float)
-        xx, yy = np.meshgrid(xCoords, yCoords, indexing="ij")
+        activeAxes = self._activeAxisIndices(projection.visibleCoords)
+        if len(activeAxes) != 2:
+            return None
+
+        values = self._extract2DValues(projection.volume)
+
+        coordList = [np.asarray(coords, dtype=float) for coords in
+                     projection.visibleCoords]
+        coord0 = coordList[activeAxes[0]]
+        coord1 = coordList[activeAxes[1]]
+
+        xx, yy = np.meshgrid(coord0, coord1, indexing="ij")
         zz = values
+
         grid = pv.StructuredGrid(xx, yy, zz)
         grid["u"] = values.ravel(order="F")
         return self.plotter.add_mesh(
@@ -237,10 +293,10 @@ class PyVistaVolumeRenderer:
         )
 
     def _renderImplicit(
-        self,
-        projection: ProjectionResult,
-        colorPolicy: ScalarColorPolicy,
-        clim: tuple[float, float] | None,
+            self,
+            projection: ProjectionResult,
+            colorPolicy: ScalarColorPolicy,
+            clim: tuple[float, float] | None,
     ):
         nonSingletonCount = sum(size > 1 for size in projection.volume.shape)
         scalarClim = clim
@@ -249,13 +305,16 @@ class PyVistaVolumeRenderer:
             scalarClim = (-vmaxAbs, vmaxAbs)
 
         if nonSingletonCount <= 2:
-            xCoords, yCoords, zCoords = projection.visibleCoords
-            values = np.asarray(projection.volume[:, :, 0], dtype=float)
-            xx, yy = np.meshgrid(xCoords, yCoords, indexing="ij")
-            zz = np.full_like(xx, float(zCoords[0]) if len(zCoords) > 0 else 0.0)
+            values = self._extract2DValues(projection.volume)
+            xx, yy, zz = self._buildPlaneCoordinates(projection.visibleCoords)
+
             grid = pv.StructuredGrid(xx, yy, zz)
             grid["u"] = values.ravel(order="F")
             contour = grid.contour(isosurfaces=[0.0], scalars="u")
+
+            if not self._hasRenderableGeometry(contour):
+                return None
+
             return self.plotter.add_mesh(
                 contour,
                 scalars="u",
@@ -268,6 +327,10 @@ class PyVistaVolumeRenderer:
 
         image = self._buildImageData(projection)
         contour = image.contour(isosurfaces=[0.0], scalars="u")
+
+        if not self._hasRenderableGeometry(contour):
+            return None
+
         return self.plotter.add_mesh(
             contour,
             scalars="u",

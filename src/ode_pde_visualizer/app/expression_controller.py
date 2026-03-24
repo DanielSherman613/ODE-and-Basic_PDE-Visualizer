@@ -88,15 +88,29 @@ class ExpressionController:
 
     def buildGrid(self) -> HyperGrid:
         signature = self._requireSignature()
+
+        halfSpan = self.axisHalfSpan
+
+        if self._compiled is not None and signature.isImplicitEquation:
+            for parameterName in ("r", "R", "radius"):
+                if parameterName in self._compiled.parameterValues:
+                    radiusValue = abs(
+                        float(self._compiled.parameterValues[parameterName]))
+                    halfSpan = max(halfSpan, radiusValue * 1.25)
+                    break
+
         axes: list[AxisSpec] = []
 
         for axisName in signature.renderAxisNames:
             if axisName.startswith("_pad"):
                 coords = np.array([0.0], dtype=np.float32)
+            elif axisName in signature.frozenAxes:
+                coords = np.array([float(signature.frozenAxes[axisName])],
+                                  dtype=np.float32)
             else:
                 coords = np.linspace(
-                    -self.axisHalfSpan,
-                    self.axisHalfSpan,
+                    -halfSpan,
+                    halfSpan,
                     self.axisResolution,
                     dtype=np.float32,
                 )
@@ -141,10 +155,10 @@ class ExpressionController:
         return np.nan_to_num(array, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
 
     def _buildInputMap(
-        self,
-        grid: HyperGrid,
-        viewState: ViewState,
-        timeValue: float,
+            self,
+            grid: HyperGrid,
+            viewState: ViewState,
+            timeValue: float,
     ) -> dict[str, np.ndarray | float]:
         axisInputs: dict[str, np.ndarray | float] = {}
         for axisIndex, axis in enumerate(grid.axes):
@@ -156,12 +170,13 @@ class ExpressionController:
         visibleAxes = viewState.dimensionWindow.visibleAxes(grid.ndim)
         visibleAxisNames = [grid.axes[index].name for index in visibleAxes]
 
-        if visibleAxisNames:
-            axisInputs.setdefault("x", axisInputs[visibleAxisNames[0]])
-        if len(visibleAxisNames) > 1:
-            axisInputs.setdefault("y", axisInputs[visibleAxisNames[1]])
-        if len(visibleAxisNames) > 2:
-            axisInputs.setdefault("z", axisInputs[visibleAxisNames[2]])
+        if "x" not in axisInputs and visibleAxisNames:
+            axisInputs["x"] = axisInputs[visibleAxisNames[0]]
+        if "y" not in axisInputs and len(visibleAxisNames) > 1:
+            axisInputs["y"] = axisInputs[visibleAxisNames[1]]
+        if "z" not in axisInputs and len(visibleAxisNames) > 2:
+            axisInputs["z"] = axisInputs[visibleAxisNames[2]]
+
         axisInputs["t"] = float(timeValue)
 
         if self._compiled is not None:

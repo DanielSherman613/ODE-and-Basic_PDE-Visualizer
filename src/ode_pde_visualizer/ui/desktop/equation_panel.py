@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMenu,
     QPushButton,
+    QTextBrowser,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -33,7 +35,8 @@ class LatexPreviewLabel(QLabel):
     def __init__(self) -> None:
         super().__init__("Type an expression to see a formatted preview.")
         self.setMinimumHeight(90)
-        self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.setFrameShape(QFrame.Shape.StyledPanel)
 
     def setLatex(self, latexText: str) -> None:
@@ -43,7 +46,8 @@ class LatexPreviewLabel(QLabel):
 
         textArtist = figure.text(0.0, 0.0, f"${latexText}$", fontsize=16)
         canvas.draw()
-        bbox = textArtist.get_window_extent(renderer=canvas.get_renderer()).expanded(1.08, 1.35)
+        bbox = textArtist.get_window_extent(
+            renderer=canvas.get_renderer()).expanded(1.08, 1.35)
 
         width = max(1, int(bbox.width))
         height = max(1, int(bbox.height))
@@ -70,6 +74,168 @@ class LatexPreviewLabel(QLabel):
         self.setText("Type an expression to see a formatted preview.")
 
 
+class UserManualDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("User manual")
+        self.resize(700, 560)
+
+        layout = QVBoxLayout(self)
+
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(False)
+        browser.setMarkdown(self._manualText())
+        layout.addWidget(browser)
+
+        closeButton = QPushButton("Close")
+        closeButton.clicked.connect(self.accept)
+        layout.addWidget(closeButton)
+
+    @staticmethod
+    def _manualText() -> str:
+        return """
+# ODE / PDE Visualizer Manual
+
+Welcome. This panel explains the main input rules and the safest ways to use the visualizer.
+
+## 1. Basic expressions
+
+Type normal expressions such as:
+
+- `x^2`
+- `x^2 + y^2`
+- `sin(x) * cos(y)`
+- `exp(-t) * (x^2 + y^2)`
+
+Use `t` for time dependent expressions.
+
+## 2. Implicit equations
+
+To draw shapes such as circles and spheres, use an equation with `=`:
+
+- `x^2 + y^2 = 1`
+- `x^2 + y^2 = r^2`
+- `x^2 + y^2 + z^2 = r^2`
+
+If you use a parameter such as `r`, a parameter box will appear below the preview.
+
+## 3. Zero axis or pinned axis
+
+To force an axis to be zero, use the format:
+
+- `0_y`
+- `0_z`
+- `0_x2`
+
+Examples:
+
+- `x^2 + z^2 = 1 + 0_y`
+- `x^2 + y^2 = r^2 + 0_z`
+- `x1^2 + x3^2 = 1 + 0_x2`
+
+This means that axis is kept in the model, but fixed at zero.
+
+Important:
+Do not freeze and vary the same axis at the same time.
+
+Bad example:
+
+- `x^2 + 0_x`
+
+## 4. Higher dimensions
+
+For higher dimensional input, the safest naming style is:
+
+- `x1, x2, x3, x4, x5, ...`
+
+Examples:
+
+- `x1^2 + x2^2 + x3^2 + x4^2`
+- `x1^2 + x3^2 = 1 + 0_x2`
+- `x1^2 + x2^2 + x3^2 - x4 + x5`
+
+You can also use names like `x, y, z, n`, but the indexed form is the most predictable.
+
+## 5. Mouse wheel dimension scrolling
+
+If your expression has more than 3 spatial axes, the mouse wheel changes which 3 axes are visible.
+
+Examples:
+
+- `(x+1)*(y+1)*(z+1)*(n+1)`
+- `x1^2 + x2^2 + x3^2 + x4^2`
+
+If an axis should stay fixed instead of scrolling, pin it with `0_axisName`.
+
+## 6. Derivatives and integrals
+
+Supported examples:
+
+- `diff(sin(x), x)`
+- `diff(x^2 * y, y)`
+- `integrate(x^2, x)`
+- `integrate(x*y, x)`
+
+You can also use the operator buttons in the panel.
+
+## 7. Numerical style operators
+
+Available operator forms include:
+
+- `grad(expr)`
+- `lap(expr)`
+- `div(Fx, Fy, Fz)`
+
+Examples:
+
+- `grad(x^2 + y^2 + z^2)`
+- `lap(sin(x) * cos(y))`
+- `div(x*y, -x*y, z)`
+
+## 8. Systems
+
+Use the system dropdown to switch between:
+
+- Expression
+- Heat ND
+- Lorenz
+- Lotka Volterra
+
+Expression mode is for typed formulas and implicit surfaces.
+The other modes run built in simulations.
+
+## 9. Animation
+
+Use the **Play** button to animate:
+- time dependent expressions using `t`
+- stored PDE frames
+- ODE trajectories
+
+## 10. Safe input tips
+
+To avoid crashes or confusing plots:
+
+- prefer `x1, x2, x3, ...` for many dimensions
+- use `0_y`, `0_z`, or `0_x2` to pin axes cleanly
+- do not use the same axis as both varying and pinned
+- if you use a parameter like `r`, make sure it has a numeric value
+- for spheres and circles, prefer implicit equations with `=`
+
+## 11. Good starter examples
+
+Try these:
+
+- `x^2 + y^2`
+- `x^2 + y^2 + z^2 = r^2`
+- `x^2 + z^2 = 1 + 0_y`
+- `exp(-t) * (x^2 + y^2)`
+- `lap(sin(x) * cos(y))`
+- `x1^2 + x3^2 = 1 + 0_x2`
+
+Have fun.
+"""
+
+
 class EquationPanel(QWidget):
     expressionApplied = pyqtSignal(object, object)
     systemSelectionChanged = pyqtSignal(str)
@@ -79,12 +245,22 @@ class EquationPanel(QWidget):
         super().__init__()
 
         self.systemCombo = QComboBox()
-        self.systemCombo.addItems(["Expression", "Heat ND", "Lorenz", "Lotka Volterra"])
+        self.systemCombo.addItems(
+            ["Expression", "Heat ND", "Lorenz", "Lotka Volterra"])
+        self.manualButton = QToolButton()
+        self.manualButton.setText("?")
+        self.manualButton.setToolTip("Open the user manual")
+        self.manualButton.setAutoRaise(True)
+        self.manualButton.clicked.connect(self._showManual)
+
+        self._manualDialog: UserManualDialog | None = None
 
         self.examplesButton = QToolButton()
         self.examplesButton.setText("✦")
-        self.examplesButton.setToolTip("Insert an example that shows a feature of the visualizer")
-        self.examplesButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.examplesButton.setToolTip(
+            "Insert an example that shows a feature of the visualizer")
+        self.examplesButton.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup)
         self.examplesButton.setAutoRaise(True)
         self.examplesMenu = self._buildExamplesMenu()
         self.examplesButton.setMenu(self.examplesMenu)
@@ -132,6 +308,7 @@ class EquationPanel(QWidget):
         buttonRow.addWidget(self.playPauseButton)
 
         headerRow = QHBoxLayout()
+        headerRow.addWidget(self.manualButton)
         headerRow.addWidget(QLabel("Equation editor"))
         headerRow.addStretch(1)
         headerRow.addWidget(self.examplesButton)
@@ -154,7 +331,8 @@ class EquationPanel(QWidget):
         self.input.returnPressed.connect(self._applyCurrentExpression)
         self.applyButton.clicked.connect(self._applyCurrentExpression)
         self.playPauseButton.clicked.connect(self.playPauseClicked.emit)
-        self.systemCombo.currentTextChanged.connect(self.systemSelectionChanged.emit)
+        self.systemCombo.currentTextChanged.connect(
+            self.systemSelectionChanged.emit)
 
     def setSelectedSystem(self, systemName: str) -> None:
         index = self.systemCombo.findText(systemName)
@@ -163,6 +341,13 @@ class EquationPanel(QWidget):
 
     def setPlayButtonState(self, isPlaying: bool) -> None:
         self.playPauseButton.setText("Pause" if isPlaying else "Play")
+
+    def _showManual(self) -> None:
+        if self._manualDialog is None:
+            self._manualDialog = UserManualDialog(self)
+        self._manualDialog.show()
+        self._manualDialog.raise_()
+        self._manualDialog.activateWindow()
 
     def currentParameterValues(self) -> dict[str, float]:
         values: dict[str, float] = {}
@@ -221,7 +406,8 @@ class EquationPanel(QWidget):
                 "Time",
                 [
                     ("Decaying surface", "exp(-t) * (x^2 + y^2)"),
-                    ("Breathing sphere", "x^2 + y^2 + z^2 = (1 + 0.25*sin(t))^2"),
+                    ("Breathing sphere",
+                     "x^2 + y^2 + z^2 = (1 + 0.25*sin(t))^2"),
                 ],
             ),
             (
@@ -253,7 +439,9 @@ class EquationPanel(QWidget):
             for title, expressionText in examples:
                 action = section.addAction(title)
                 action.triggered.connect(
-                    lambda checked=False, expr=expressionText: self._applyExampleExpression(expr)
+                    lambda checked=False,
+                           expr=expressionText: self._applyExampleExpression(
+                        expr)
                 )
 
         return menu

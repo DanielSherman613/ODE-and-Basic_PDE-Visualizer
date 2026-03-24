@@ -4,7 +4,8 @@ from dataclasses import dataclass
 import re
 from typing import Iterable
 
-from sympy import Abs, E, Symbol, cos, diff, exp, integrate, latex, log, pi, sin, sqrt, tan
+from sympy import Abs, E, Symbol, cos, diff, exp, integrate, latex, log, pi, \
+    sin, sqrt, tan
 from sympy.parsing.sympy_parser import (
     convert_xor,
     implicit_application,
@@ -30,6 +31,7 @@ _TRANSFORMS = standard_transformations + (
 )
 
 _EXPLICIT_AXIS_PATTERN = re.compile(r"x([1-9][0-9]*)$")
+_ZERO_AXIS_PATTERN = re.compile(r"(?<![\w.])0_([A-Za-z]\w*)(?!\w)")
 _ALIAS_ORDER = ("x", "y", "z")
 
 
@@ -65,7 +67,8 @@ def _divergence(*components):
             if len(axisNames) >= len(components):
                 break
 
-    return sum(diff(component, Symbol(axisNames[index])) for index, component in enumerate(components))
+    return sum(diff(component, Symbol(axisNames[index])) for index, component in
+               enumerate(components))
 
 
 _ALLOWED_NAMES = {
@@ -106,6 +109,7 @@ class ParsedMathExpression:
     latexText: str
     isImplicitEquation: bool = False
     hintSymbolNames: list[str] | None = None
+    frozenAxes: dict[str, float] | None = None
 
 
 @dataclass(slots=True)
@@ -117,12 +121,26 @@ class ExpressionSignature:
     renderAxisNames: list[str]
     userVariableCount: int
     isImplicitEquation: bool
+    frozenAxes: dict[str, float]
+
+def _extractZeroAxes(text: str) -> tuple[str, dict[str, float]]:
+    frozenAxes: dict[str, float] = {}
+
+    def replacer(match: re.Match[str]) -> str:
+        axisName = match.group(1)
+        frozenAxes[axisName] = 0.0
+        return "0"
+
+    cleaned = _ZERO_AXIS_PATTERN.sub(replacer, text)
+    return cleaned, frozenAxes
 
 
 def parseMathExpression(text: str) -> ParsedMathExpression:
     cleaned = text.strip()
     if not cleaned:
         raise ValueError("Enter an expression.")
+
+    cleaned, frozenAxes = _extractZeroAxes(cleaned)
 
     if _looksLikeEquation(cleaned):
         lhsText, rhsText = _splitEquation(cleaned)
@@ -131,21 +149,23 @@ def parseMathExpression(text: str) -> ParsedMathExpression:
         normalizedLhs = _normalizeExpressionText(lhsText)
         normalizedRhs = _normalizeExpressionText(rhsText)
         return ParsedMathExpression(
-            rawText=cleaned,
+            rawText=text.strip(),
             expr=lhsExpr - rhsExpr,
             latexText=f"{latex(lhsExpr)} = {latex(rhsExpr)}",
             isImplicitEquation=True,
             hintSymbolNames=_extractUserSymbolNames(f"{normalizedLhs} {normalizedRhs}"),
+            frozenAxes=frozenAxes,
         )
 
     normalized = _normalizeExpressionText(cleaned)
     expr = _parseSingleExpression(cleaned)
     return ParsedMathExpression(
-        rawText=cleaned,
+        rawText=text.strip(),
         expr=expr,
         latexText=latex(expr),
         isImplicitEquation=False,
         hintSymbolNames=_extractUserSymbolNames(normalized),
+        frozenAxes=frozenAxes,
     )
 
 
@@ -155,7 +175,14 @@ def analyzeParsedExpression(
 ) -> ExpressionSignature:
     freeSymbolNames = {str(symbol) for symbol in parsed.expr.free_symbols}
     hintSymbolNames = set(parsed.hintSymbolNames or [])
-    allRelevantSymbolNames = freeSymbolNames | hintSymbolNames
+    frozenAxisNames = set((parsed.frozenAxes or {}).keys())
+
+    conflicts = frozenAxisNames & freeSymbolNames
+    if conflicts:
+        joined = ", ".join(sorted(conflicts))
+        raise ValueError(f"Axis cannot be both frozen and varying: {joined}")
+
+    allRelevantSymbolNames = freeSymbolNames | hintSymbolNames | frozenAxisNames
     usesTime = "t" in allRelevantSymbolNames
 
     if parsed.isImplicitEquation:
@@ -182,6 +209,7 @@ def analyzeParsedExpression(
         renderAxisNames=renderAxisNames,
         userVariableCount=len(spatialVariableNames),
         isImplicitEquation=parsed.isImplicitEquation,
+        frozenAxes=dict(parsed.frozenAxes or {}),
     )
 
 
@@ -227,10 +255,12 @@ def _rewriteLeibnizDerivatives(text: str) -> str:
         if text.startswith("d/d", index):
             variableStart = index + 3
             variableEnd = variableStart
-            while variableEnd < length and (text[variableEnd].isalnum() or text[variableEnd] == "_"):
+            while variableEnd < length and (
+                    text[variableEnd].isalnum() or text[variableEnd] == "_"):
                 variableEnd += 1
 
-            if variableEnd == variableStart or variableEnd >= length or text[variableEnd] != "(":
+            if variableEnd == variableStart or variableEnd >= length or text[
+                variableEnd] != "(":
                 pieces.append(text[index])
                 index += 1
                 continue
@@ -266,7 +296,8 @@ def _rewriteLeibnizDerivatives(text: str) -> str:
 
 
 def _looksLikeEquation(text: str) -> bool:
-    return text.count("=") == 1 and "==" not in text and "<=" not in text and ">=" not in text
+    return text.count(
+        "=") == 1 and "==" not in text and "<=" not in text and ">=" not in text
 
 
 def _splitEquation(text: str) -> tuple[str, str]:
@@ -276,7 +307,6 @@ def _splitEquation(text: str) -> tuple[str, str]:
     if not lhsText or not rhsText:
         raise ValueError("Both sides of the equation must be non empty.")
     return lhsText, rhsText
-
 
 
 def _extractUserSymbolNames(text: str) -> list[str]:
@@ -293,6 +323,7 @@ def _extractUserSymbolNames(text: str) -> list[str]:
         if token not in seen:
             seen.append(token)
     return seen
+
 
 def _orderedSpatialVariableNames(freeSymbolNames: set[str]) -> list[str]:
     spatial: list[str] = []
@@ -321,7 +352,8 @@ def _orderedSpatialVariableNames(freeSymbolNames: set[str]) -> list[str]:
     return spatial
 
 
-def _orderedImplicitSpatialVariableNames(freeSymbolNames: set[str]) -> list[str]:
+def _orderedImplicitSpatialVariableNames(freeSymbolNames: set[str]) -> list[
+    str]:
     spatial: list[str] = []
     consumed: set[str] = set()
 
