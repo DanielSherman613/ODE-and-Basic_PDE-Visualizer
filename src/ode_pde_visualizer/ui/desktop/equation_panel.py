@@ -97,7 +97,15 @@ class UserManualDialog(QDialog):
 # ODE / PDE Visualizer Manual
 
 Welcome. This panel explains the main input rules and the safest ways to use the visualizer.
-
+## 0. Basic operation
+- Press 'f' key to zoom in the direction of the cursor
+- Press 'w' to render a wire mesh
+- Press 'v' or 'r' to reset the graph
+- Press 'i' to hide and reveal axis
+- Right click and drag for local zoom
+- Left click and drag for rotation
+- Mouse wheel click and drag to move fixed camera
+- Left click and drag for the same effect as mouse wheel click and drag
 ## 1. Basic expressions
 
 Type normal expressions such as:
@@ -336,7 +344,7 @@ class EquationPanel(QWidget):
 
     def setSelectedSystem(self, systemName: str) -> None:
         index = self.systemCombo.findText(systemName)
-        if index >= 0 and self.systemCombo.currentIndex() != index:
+        if 0 <= index != self.systemCombo.currentIndex():
             self.systemCombo.setCurrentIndex(index)
 
     def setPlayButtonState(self, isPlaying: bool) -> None:
